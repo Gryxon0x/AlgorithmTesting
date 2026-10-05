@@ -1,0 +1,7 @@
+[1/4] Building C object CMakeFiles/step_algorithms.dir/algorithms/adaptive_threshold_detector.c.obj
+FAILED: [code=1] CMakeFiles/step_algorithms.dir/algorithms/adaptive_threshold_detector.c.obj 
+C:\msys64\ucrt64\bin\cc.exe  -IC:/Users/fabio/Desktop/step_detection_tests/include -IC:/Users/fabio/Desktop/step_detection_tests/algorithms -std=c11 -Wall -Wextra -Wpedantic -MD -MT CMakeFiles/step_algorithms.dir/algorithms/adaptive_threshold_detector.c.obj -MF CMakeFiles\step_algorithms.dir\algorithms\adaptive_threshold_detector.c.obj.d -o CMakeFiles/step_algorithms.dir/algorithms/adaptive_threshold_detector.c.obj -c C:/Users/fabio/Desktop/step_detection_tests/algorithms/adaptive_threshold_detector.c
+[2/4] Building C object CMakeFiles/step_test.dir/host/main.c.obj
+FAILED: [code=1] CMakeFiles/step_test.dir/host/main.c.obj 
+C:\msys64\ucrt64\bin\cc.exe  -IC:/Users/fabio/Desktop/step_detection_tests/include -IC:/Users/fabio/Desktop/step_detection_tests/host -IC:/Users/fabio/Desktop/step_detection_tests/algorithms -std=c11 -Wall -Wextra -Wpedantic -MD -MT CMakeFiles/step_test.dir/host/main.c.obj -MF CMakeFiles\step_test.dir\host\main.c.obj.d -o CMakeFiles/step_test.dir/host/main.c.obj -c C:/Users/fabio/Desktop/step_detection_tests/host/main.c
+ninja: build stopped: subcommand failed.

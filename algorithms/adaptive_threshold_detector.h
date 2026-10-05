@@ -6,20 +6,11 @@
 
 #include "accel_sample.h"
 
-
 typedef struct
 {
-    /*
-     * EMA coefficients.
-     * These defaults assume approximately 50 Hz sampling.
-     */
     double baseline_alpha;
     double activity_alpha;
 
-    /*
-     * threshold =
-     *     baseline + sensitivity * activity
-     */
     double sensitivity;
 
     double min_threshold_g;

@@ -41,15 +41,6 @@ void adaptive_threshold_detector_default_config(
         return;
     }
 
-    /*
-     * At 50 Hz:
-     *
-     * baseline_alpha = 0.004
-     * corresponds roughly to a 5 second time constant.
-     *
-     * activity_alpha = 0.010
-     * corresponds roughly to a 2 second time constant.
-     */
     config->baseline_alpha = 0.004;
     config->activity_alpha = 0.010;
 
@@ -96,14 +87,12 @@ bool adaptive_threshold_detector_process(
     adaptive_threshold_output_t *output)
 {
     double magnitude_g;
-
     double threshold_for_this_sample;
     double baseline_for_this_sample;
     double activity_for_this_sample;
-
     double deviation_g;
 
-    bool crossed_threshold = false;
+    bool crossed_threshold;
     bool interval_ok = true;
     bool event_detected = false;
 
@@ -114,9 +103,6 @@ bool adaptive_threshold_detector_process(
 
     magnitude_g = calculate_magnitude_g(sample);
 
-    /*
-     * First sample initializes the detector.
-     */
     if (!detector->initialized)
     {
         detector->baseline_g = magnitude_g;
@@ -151,10 +137,6 @@ bool adaptive_threshold_detector_process(
         return false;
     }
 
-    /*
-     * Use only information from PREVIOUS samples
-     * to classify the current one.
-     */
     threshold_for_this_sample =
         detector->threshold_g;
 
@@ -164,20 +146,16 @@ bool adaptive_threshold_detector_process(
     activity_for_this_sample =
         detector->activity_g;
 
-    /*
-     * Detect upward crossing.
-     */
     crossed_threshold =
         (detector->previous_magnitude_g <
          detector->previous_threshold_g) &&
         (magnitude_g >= threshold_for_this_sample);
 
-    /*
-     * Refractory interval.
-     */
     if (detector->has_last_event)
     {
-        const uint32_t elapsed_ms =
+        uint32_t elapsed_ms;
+
+        elapsed_ms =
             sample->timestamp_ms -
             detector->last_event_timestamp_ms;
 
@@ -198,44 +176,25 @@ bool adaptive_threshold_detector_process(
         event_detected = true;
     }
 
-    /*
-     * Update the adaptive state AFTER making
-     * the decision for this sample.
-     */
-
     deviation_g =
-        fabs(
-            magnitude_g -
-            detector->baseline_g);
+        fabs(magnitude_g - detector->baseline_g);
 
     detector->baseline_g +=
         detector->config.baseline_alpha *
-        (
-            magnitude_g -
-            detector->baseline_g
-        );
+        (magnitude_g - detector->baseline_g);
 
     detector->activity_g +=
         detector->config.activity_alpha *
-        (
-            deviation_g -
-            detector->activity_g
-        );
+        (deviation_g - detector->activity_g);
 
     detector->threshold_g =
         clamp_double(
             detector->baseline_g +
             detector->config.sensitivity *
             detector->activity_g,
-
             detector->config.min_threshold_g,
-            detector->config.max_threshold_g
-        );
+            detector->config.max_threshold_g);
 
-    /*
-     * Save values needed for the next
-     * crossing decision.
-     */
     detector->previous_magnitude_g =
         magnitude_g;
 
