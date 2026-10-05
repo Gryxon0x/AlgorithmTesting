@@ -9,6 +9,7 @@ set(CMAKE_C_EXTENSIONS OFF)
 add_library(step_algorithms STATIC
     algorithms/peak_detector.c
     algorithms/threshold_detector.c
+    algorithms/adaptive_threshold_detector.c
 )
 
 target_include_directories(step_algorithms PUBLIC

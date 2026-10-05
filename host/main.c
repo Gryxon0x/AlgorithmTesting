@@ -5,6 +5,7 @@
 #include "csv_reader.h"
 #include "peak_detector.h"
 #include "threshold_detector.h"
+#include "adaptive_threshold_detector.h"
 
 static int compare_double(const void *left, const void *right)
 {
@@ -266,6 +267,76 @@ int main(int argc, char *argv[])
         "\nDetected threshold events: %u\n",
         threshold_detector_get_count(
             &threshold_detector));
+
+    adaptive_threshold_config_t adaptive_config;
+    adaptive_threshold_detector_t adaptive_detector;
+
+    adaptive_threshold_detector_default_config(
+        &adaptive_config);
+
+    adaptive_threshold_detector_init(
+        &adaptive_detector,
+        &adaptive_config);
+
+    printf("\nAdaptive threshold detector\n");
+    printf("---------------------------\n");
+
+    printf(
+        "Baseline alpha: %.4f\n",
+        adaptive_config.baseline_alpha);
+
+    printf(
+        "Activity alpha: %.4f\n",
+        adaptive_config.activity_alpha);
+
+    printf(
+        "Sensitivity: %.3f\n",
+        adaptive_config.sensitivity);
+
+    printf(
+        "Threshold bounds: %.3f - %.3f g\n",
+        adaptive_config.min_threshold_g,
+        adaptive_config.max_threshold_g);
+
+    printf(
+        "Minimum interval: %u ms\n\n",
+        adaptive_config.min_event_interval_ms);
+
+    printf(
+        "#\tindex\tt_ms\tmagnitude_g\t"
+        "threshold_g\tbaseline_g\tactivity_g\n");
+
+    for (i = 0U; i < sample_count; ++i)
+    {
+        adaptive_threshold_output_t output;
+
+        if (adaptive_threshold_detector_process(
+                &adaptive_detector,
+                &samples[i],
+                &output))
+        {
+            printf(
+                "%u\t%zu\t%u\t"
+                "%.6f\t%.6f\t%.6f\t%.6f\n",
+
+                adaptive_threshold_detector_get_count(
+                    &adaptive_detector),
+
+                i,
+
+                samples[i].timestamp_ms,
+
+                output.magnitude_g,
+                output.threshold_g,
+                output.baseline_g,
+                output.activity_g);
+        }
+    }
+
+    printf(
+        "\nDetected adaptive-threshold events: %u\n",
+        adaptive_threshold_detector_get_count(
+            &adaptive_detector));
 
     printf("File: %s\n", csv_path);
     printf("Samples: %zu\n", sample_count);
