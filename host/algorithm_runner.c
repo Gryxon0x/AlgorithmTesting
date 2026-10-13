@@ -8,6 +8,7 @@
 #include "threshold_detector.h"
 #include "adaptive_threshold_detector.h"
 #include "adaptive_peak_detector.h"
+#include "frequency_detector.h"
 
 
 static int write_peak_debug_csv(
@@ -436,6 +437,131 @@ static int run_adaptive_peak_detector(
     return 0;
 }
 
+static int run_frequency_analysis(
+    const accel_sample_t *samples,
+    size_t sample_count,
+    double sample_rate_hz)
+{
+    frequency_detector_config_t config;
+    frequency_detector_t detector;
+
+    size_t i;
+
+    frequency_detector_default_config(
+        &config);
+
+    /*
+     * Use the actual sample rate measured
+     * from the recording.
+     */
+    config.sample_rate_hz =
+        sample_rate_hz;
+
+    if (frequency_detector_init(
+            &detector,
+            &config) != 0)
+    {
+        fprintf(
+            stderr,
+            "Frequency detector initialization failed.\n");
+
+        return -1;
+    }
+
+    printf("\nFrequency analysis\n");
+    printf("------------------\n");
+
+    printf(
+        "FFT size: %u samples\n",
+        FREQUENCY_FFT_SIZE);
+
+    printf(
+        "Hop size: %zu samples\n",
+        config.hop_size);
+
+    printf(
+        "Sample rate: %.3f Hz\n",
+        config.sample_rate_hz);
+
+    printf(
+        "Frequency resolution: %.3f Hz/bin\n",
+        config.sample_rate_hz /
+        (double)FREQUENCY_FFT_SIZE);
+
+    printf(
+        "Search range: %.3f - %.3f Hz\n\n",
+        config.search_low_hz,
+        config.search_high_hz);
+
+    printf(
+        "#\tstart_ms\tend_ms\t"
+        "mean_g\t"
+        "dominant_bin\t"
+        "dominant_hz\t"
+        "dominant_power\n");
+
+    for (i = 0U;
+         i < sample_count;
+         ++i)
+    {
+        frequency_spectrum_output_t spectrum_output;
+
+        /*
+         * Stage 1:
+         * Magnitude -> mean removal -> Hann -> FFT.
+         */
+        if (frequency_detector_process(
+                &detector,
+                &samples[i],
+                &spectrum_output))
+        {
+            frequency_dominant_result_t dominant;
+
+            /*
+             * Stage 2:
+             * Find strongest component in the
+             * configured walking-frequency band.
+             */
+            if (frequency_detector_find_dominant(
+                    &detector,
+                    &dominant) != 0)
+            {
+                fprintf(
+                    stderr,
+                    "Dominant-frequency analysis failed "
+                    "for window %u.\n",
+                    spectrum_output.window_number);
+
+                return -1;
+            }
+
+            printf(
+                "%u\t%u\t%u\t"
+                "%.6f\t"
+                "%zu\t"
+                "%.6f\t"
+                "%.9f\n",
+
+                spectrum_output.window_number,
+
+                spectrum_output.window_start_ms,
+                spectrum_output.window_end_ms,
+
+                spectrum_output.mean_magnitude_g,
+
+                dominant.dominant_bin,
+                dominant.dominant_frequency_hz,
+                dominant.dominant_power);
+        }
+    }
+
+    printf(
+        "\nGenerated frequency windows: %u\n",
+        detector.window_count);
+
+    return 0;
+}
+
 
 int run_all_algorithms(
     const accel_sample_t *samples,
@@ -489,6 +615,18 @@ int run_all_algorithms(
             samples,
             sample_count,
             sample_rate_hz) != 0)
+    {
+        return -1;
+    }
+
+    /*
+        Signal Based Algorithms
+    */
+
+    if (run_frequency_detector_analysis(
+        samples,
+        sample_count,
+        sample_rate_hz) != 0)
     {
         return -1;
     }

@@ -289,6 +289,12 @@ void frequency_detector_default_config(
      * hop      = 32
      */
     config->hop_size = 32U;
+
+    /*
+     * Initial walking-related search range.
+     */
+    config->search_low_hz = 0.5;
+    config->search_high_hz = 4.0;
 }
 
 
@@ -310,6 +316,23 @@ int frequency_detector_init(
     if ((config->hop_size == 0U) ||
         (config->hop_size >
          FREQUENCY_FFT_SIZE))
+    {
+        return -1;
+    }
+
+    if (!(config->search_low_hz >= 0.0))
+    {
+        return -1;
+    }
+
+    if (!(config->search_high_hz >
+        config->search_low_hz))
+    {
+        return -1;
+    }
+
+    if (!(config->search_high_hz <=
+        config->sample_rate_hz / 2.0))
     {
         return -1;
     }
@@ -432,4 +455,77 @@ double frequency_detector_get_bin_frequency_hz(
         (double)bin *
         detector->config.sample_rate_hz /
         (double)FREQUENCY_FFT_SIZE;
+}
+
+int frequency_detector_find_dominant(
+    const frequency_detector_t *detector,
+    frequency_dominant_result_t *result)
+{
+    size_t bin;
+
+    bool found = false;
+
+    size_t best_bin = 0U;
+    double best_power = 0.0;
+
+    if ((detector == NULL) ||
+        (result == NULL))
+    {
+        return -1;
+    }
+
+    /*
+     * Search only the configured frequency band.
+     */
+    for (bin = 0U;
+         bin < FREQUENCY_SPECTRUM_BINS;
+         ++bin)
+    {
+        const double frequency_hz =
+            frequency_detector_get_bin_frequency_hz(
+                detector,
+                bin);
+
+        const double power =
+            detector->power_spectrum[bin];
+
+        if (frequency_hz <
+            detector->config.search_low_hz)
+        {
+            continue;
+        }
+
+        if (frequency_hz >
+            detector->config.search_high_hz)
+        {
+            break;
+        }
+
+        if ((!found) ||
+            (power > best_power))
+        {
+            best_bin = bin;
+            best_power = power;
+
+            found = true;
+        }
+    }
+
+    if (!found)
+    {
+        return -1;
+    }
+
+    result->dominant_bin =
+        best_bin;
+
+    result->dominant_frequency_hz =
+        frequency_detector_get_bin_frequency_hz(
+            detector,
+            best_bin);
+
+    result->dominant_power =
+        best_power;
+
+    return 0;
 }

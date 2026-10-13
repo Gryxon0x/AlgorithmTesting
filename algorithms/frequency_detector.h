@@ -11,7 +11,6 @@
 #define FREQUENCY_FFT_SIZE       128U
 #define FREQUENCY_SPECTRUM_BINS  (FREQUENCY_FFT_SIZE / 2U + 1U)
 
-
 typedef struct
 {
     double sample_rate_hz;
@@ -22,6 +21,13 @@ typedef struct
      * 32 samples at 50 Hz = 0.64 seconds.
      */
     size_t hop_size;
+
+    /*
+     * Frequency band in which we search
+     * for walking-related periodicity.
+     */
+    double search_low_hz;
+    double search_high_hz;
 
 } frequency_detector_config_t;
 
@@ -64,6 +70,15 @@ typedef struct
 
 } frequency_detector_t;
 
+typedef struct
+{
+    size_t dominant_bin;
+
+    double dominant_frequency_hz;
+    double dominant_power;
+
+} frequency_dominant_result_t;
+
 
 void frequency_detector_default_config(
     frequency_detector_config_t *config);
@@ -100,6 +115,19 @@ const double *frequency_detector_get_power_spectrum(
 double frequency_detector_get_bin_frequency_hz(
     const frequency_detector_t *detector,
     size_t bin);
+
+    /*
+ * Stage 2:
+ * Find the strongest FFT component inside
+ * the configured analysis-frequency range.
+ *
+ * Returns:
+ *   0  success
+ *  -1  error
+ */
+int frequency_detector_find_dominant(
+    const frequency_detector_t *detector,
+    frequency_dominant_result_t *result);
 
 
 #endif /* FREQUENCY_DETECTOR_H */
