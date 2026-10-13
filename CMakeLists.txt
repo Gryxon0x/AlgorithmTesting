@@ -21,6 +21,7 @@ target_include_directories(step_algorithms PUBLIC
 add_executable(step_test
     host/main.c
     host/csv_reader.c
+    host/algorithm_runner.c
 )
 
 target_include_directories(step_test PRIVATE
