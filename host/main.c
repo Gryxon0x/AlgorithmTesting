@@ -6,6 +6,7 @@
 #include "peak_detector.h"
 #include "threshold_detector.h"
 #include "adaptive_threshold_detector.h"
+#include "adaptive_peak_detector.h"
 
 static int compare_double(const void *left, const void *right)
 {
