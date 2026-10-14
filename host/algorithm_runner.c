@@ -507,14 +507,15 @@ static int run_frequency_analysis(
 
     printf(
         "#\tstart_ms\tend_ms\t"
-        "mean_g\t"
-        "dominant_bin\t"
         "dominant_hz\t"
-        "dominant_power\t"
-        "band_power\t"
-        "dominant_region_power\t"
         "quality\t"
-        "periodic\n");
+        "periodic\t"
+        "step_hz\t"
+        "cadence_spm\t"
+        "dt_s\t"
+        "steps_added\t"
+        "total_steps\t"
+        "fraction\n");
 
     for (i = 0U;
          i < sample_count;
@@ -533,6 +534,7 @@ static int run_frequency_analysis(
         {
             frequency_dominant_result_t dominant;
             frequency_quality_result_t quality;
+            frequency_cadence_result_t cadence;
 
             /*
              * Stage 2:
@@ -569,43 +571,79 @@ static int run_frequency_analysis(
                     spectrum_output.window_number);
 
                 return -1;
-    }
+            }
+
+            /*
+            * Stage 4:
+            * Estimate cadence and accumulate steps.
+            */
+            if (frequency_detector_update_cadence(
+                    &detector,
+                    &spectrum_output,
+                    &dominant,
+                    &quality,
+                    &cadence) != 0)
+            {
+                fprintf(
+                    stderr,
+                    "Cadence analysis failed "
+                    "for window %u.\n",
+                    spectrum_output.window_number);
+
+                return -1;
+            }
 
             printf(
                 "%u\t%u\t%u\t"
                 "%.6f\t"
-                "%zu\t"
-                "%.6f\t"
-                "%.9f\n"
-                "%.9f\t"
-                "%.9f\t"
                 "%.3f\t"
-                "%s\n",
+                "%s\t"
+                "%.6f\t"
+                "%.2f\t"
+                "%.3f\t"
+                "%.3f\t"
+                "%u\t"
+                "%.3f\n",
 
                 spectrum_output.window_number,
 
                 spectrum_output.window_start_ms,
                 spectrum_output.window_end_ms,
 
-                spectrum_output.mean_magnitude_g,
-
-                dominant.dominant_bin,
                 dominant.dominant_frequency_hz,
-                dominant.dominant_power,
-            
-                quality.total_band_power,
-                quality.dominant_region_power,
+
                 quality.spectral_quality,
 
                 quality.periodic_activity_detected
-                ? "YES"
-                : "NO");
+                    ? "YES"
+                    : "NO",
+
+                cadence.estimated_step_frequency_hz,
+                cadence.estimated_cadence_spm,
+
+                cadence.integration_duration_s,
+                cadence.estimated_steps_added,
+
+                cadence.estimated_step_count,
+                cadence.fractional_steps);
         }
     }
 
     printf(
         "\nGenerated frequency windows: %u\n",
         detector.window_count);
+
+    printf(
+    "\nEstimated frequency-based steps: %u\n",
+    detector.estimated_step_count);
+
+    printf(
+    "Remaining fractional step estimate: %.3f\n",
+    detector.fractional_steps);
+
+    printf(
+    "Remaining fractional step estimate: %.3f\n",
+    detector.fractional_steps);
 
     return 0;
 }
