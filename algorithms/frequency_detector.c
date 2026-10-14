@@ -295,6 +295,12 @@ void frequency_detector_default_config(
      */
     config->search_low_hz = 0.5;
     config->search_high_hz = 4.0;
+
+    config->quality_neighbor_bins = 1U;
+
+    config->min_spectral_quality = 0.55;
+
+    config->min_band_power = 0.000001;
 }
 
 
@@ -333,6 +339,17 @@ int frequency_detector_init(
 
     if (!(config->search_high_hz <=
         config->sample_rate_hz / 2.0))
+    {
+        return -1;
+    }
+
+    if ((config->min_spectral_quality < 0.0) ||
+    (config->min_spectral_quality > 1.0))
+    {
+        return -1;
+    }
+
+    if (config->min_band_power < 0.0)
     {
         return -1;
     }
@@ -526,6 +543,148 @@ int frequency_detector_find_dominant(
 
     result->dominant_power =
         best_power;
+
+    return 0;
+}
+
+int frequency_detector_evaluate_quality(
+    const frequency_detector_t *detector,
+    const frequency_dominant_result_t *dominant,
+    frequency_quality_result_t *result)
+{
+    size_t bin;
+
+    size_t region_start;
+    size_t region_end;
+
+    double total_band_power = 0.0;
+    double dominant_region_power = 0.0;
+
+    if ((detector == NULL) ||
+        (dominant == NULL) ||
+        (result == NULL))
+    {
+        return -1;
+    }
+
+    if (dominant->dominant_bin >=
+        FREQUENCY_SPECTRUM_BINS)
+    {
+        return -1;
+    }
+
+    /*
+     * Determine dominant-frequency neighborhood.
+     */
+    if (dominant->dominant_bin >
+        detector->config.quality_neighbor_bins)
+    {
+        region_start =
+            dominant->dominant_bin -
+            detector->config.quality_neighbor_bins;
+    }
+    else
+    {
+        region_start = 0U;
+    }
+
+    region_end =
+        dominant->dominant_bin +
+        detector->config.quality_neighbor_bins;
+
+    if (region_end >=
+        FREQUENCY_SPECTRUM_BINS)
+    {
+        region_end =
+            FREQUENCY_SPECTRUM_BINS - 1U;
+    }
+
+    /*
+     * Sum all power inside the configured
+     * walking-frequency search band.
+     */
+    for (bin = 0U;
+         bin < FREQUENCY_SPECTRUM_BINS;
+         ++bin)
+    {
+        const double frequency_hz =
+            frequency_detector_get_bin_frequency_hz(
+                detector,
+                bin);
+
+        const double power =
+            detector->power_spectrum[bin];
+
+        /*
+         * Ignore frequencies below the
+         * analysis band.
+         */
+        if (frequency_hz <
+            detector->config.search_low_hz)
+        {
+            continue;
+        }
+
+        /*
+         * Frequencies increase with bin number,
+         * so we can stop once we pass the band.
+         */
+        if (frequency_hz >
+            detector->config.search_high_hz)
+        {
+            break;
+        }
+
+        total_band_power += power;
+
+        /*
+         * Only include dominant-region power
+         * if the bin is also inside the configured
+         * search band.
+         */
+        if ((bin >= region_start) &&
+            (bin <= region_end))
+        {
+            dominant_region_power +=
+                power;
+        }
+    }
+
+    result->total_band_power =
+        total_band_power;
+
+    result->dominant_region_power =
+        dominant_region_power;
+
+    /*
+     * Avoid division by zero.
+     */
+    if (total_band_power > 0.0)
+    {
+        result->spectral_quality =
+            dominant_region_power /
+            total_band_power;
+    }
+    else
+    {
+        result->spectral_quality = 0.0;
+    }
+
+    /*
+     * Require BOTH:
+     *
+     * 1. enough overall signal energy
+     * 2. enough spectral concentration
+     */
+    result->periodic_activity_detected =
+        (
+            total_band_power >=
+            detector->config.min_band_power
+        ) &&
+        (
+            result->spectral_quality >=
+            detector->config.min_spectral_quality
+        );
 
     return 0;
 }

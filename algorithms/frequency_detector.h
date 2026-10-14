@@ -29,6 +29,31 @@ typedef struct
     double search_low_hz;
     double search_high_hz;
 
+    /*
+     * Number of FFT bins on either side of the
+     * dominant bin included in its local power.
+     *
+     * 1 means:
+     * dominant_bin - 1
+     * dominant_bin
+     * dominant_bin + 1
+     */
+    size_t quality_neighbor_bins;
+
+    /*
+     * Minimum fraction of walking-band power
+     * that must be concentrated around the
+     * dominant frequency.
+     */
+    double min_spectral_quality;
+
+    /*
+     * Prevent very-low-energy/noisy windows from
+     * being classified as periodic merely because
+     * one bin happens to dominate.
+     */
+    double min_band_power;
+
 } frequency_detector_config_t;
 
 
@@ -79,6 +104,14 @@ typedef struct
 
 } frequency_dominant_result_t;
 
+typedef struct 
+{
+    double total_band_power;
+    double dominant_region_power;
+    double spectral_quality;
+    bool periodic_activity_detected;
+} frequency_quality_result_t;
+
 
 void frequency_detector_default_config(
     frequency_detector_config_t *config);
@@ -116,7 +149,7 @@ double frequency_detector_get_bin_frequency_hz(
     const frequency_detector_t *detector,
     size_t bin);
 
-    /*
+/*
  * Stage 2:
  * Find the strongest FFT component inside
  * the configured analysis-frequency range.
@@ -128,6 +161,21 @@ double frequency_detector_get_bin_frequency_hz(
 int frequency_detector_find_dominant(
     const frequency_detector_t *detector,
     frequency_dominant_result_t *result);
+
+/*
+ * Stage 3:
+ *
+ * Evaluate how strongly the spectrum is
+ * concentrated around the dominant frequency.
+ *
+ * Returns:
+ *   0  success
+ *  -1  error
+ */
+int frequency_detector_evaluate_quality(
+    const frequency_detector_t *detector,
+    const frequency_dominant_result_t *dominant,
+    frequency_quality_result_t *result);
 
 
 #endif /* FREQUENCY_DETECTOR_H */

@@ -5,9 +5,6 @@
 
 #include "accel_sample.h"
 
-
-
-
 /*
  * Runs all currently implemented step-detection algorithms
  * against the supplied recording.
