@@ -494,11 +494,27 @@ static int run_frequency_analysis(
         config.search_high_hz);
 
     printf(
+        "Spectral quality threshold: %.3f\n",
+        config.min_spectral_quality);
+
+    printf(
+        "Quality neighborhood: +/- %zu bin(s)\n",
+        config.quality_neighbor_bins);
+
+    printf(
+        "Minimum band power: %.9f\n\n",
+        config.min_band_power);
+
+    printf(
         "#\tstart_ms\tend_ms\t"
         "mean_g\t"
         "dominant_bin\t"
         "dominant_hz\t"
-        "dominant_power\n");
+        "dominant_power\t"
+        "band_power\t"
+        "dominant_region_power\t"
+        "quality\t"
+        "periodic\n");
 
     for (i = 0U;
          i < sample_count;
@@ -516,6 +532,7 @@ static int run_frequency_analysis(
                 &spectrum_output))
         {
             frequency_dominant_result_t dominant;
+            frequency_quality_result_t quality;
 
             /*
              * Stage 2:
@@ -535,12 +552,35 @@ static int run_frequency_analysis(
                 return -1;
             }
 
+            /*
+            * Stage 3:
+            * Determine whether the dominant component
+            * represents sufficiently strong periodicity.
+            */
+            if (frequency_detector_evaluate_quality(
+                &detector,
+                &dominant,
+                &quality) != 0)
+            {
+                fprintf(
+                    stderr,
+                    "Spectral-quality analysis failed "
+                    "for window %u.\n",
+                    spectrum_output.window_number);
+
+                return -1;
+    }
+
             printf(
                 "%u\t%u\t%u\t"
                 "%.6f\t"
                 "%zu\t"
                 "%.6f\t"
-                "%.9f\n",
+                "%.9f\n"
+                "%.9f\t"
+                "%.9f\t"
+                "%.3f\t"
+                "%s\n",
 
                 spectrum_output.window_number,
 
@@ -551,7 +591,15 @@ static int run_frequency_analysis(
 
                 dominant.dominant_bin,
                 dominant.dominant_frequency_hz,
-                dominant.dominant_power);
+                dominant.dominant_power,
+            
+                quality.total_band_power,
+                quality.dominant_region_power,
+                quality.spectral_quality,
+
+                quality.periodic_activity_detected
+                ? "YES"
+                : "NO");
         }
     }
 
