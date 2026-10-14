@@ -54,6 +54,18 @@ typedef struct
      */
     double min_band_power;
 
+    /*
+    * Conversion from detected dominant frequency
+    * to estimated step frequency.
+    *
+    * Start with 1.0.
+    *
+    * Later we can test whether wrist recordings are
+    * better represented by 1.0, 2.0, or dynamic
+    * harmonic selection.
+    */
+    double step_frequency_multiplier;
+
 } frequency_detector_config_t;
 
 
@@ -93,6 +105,17 @@ typedef struct
 
     uint32_t window_count;
 
+    /*
+    * Stage 4 integration state.
+    */
+    bool integration_initialized;
+
+    uint32_t previous_window_end_ms;
+
+    double fractional_steps;
+
+    uint32_t estimated_step_count;
+
 } frequency_detector_t;
 
 typedef struct
@@ -111,6 +134,38 @@ typedef struct
     double spectral_quality;
     bool periodic_activity_detected;
 } frequency_quality_result_t;
+
+typedef struct
+{
+    bool cadence_valid;
+
+    double estimated_step_frequency_hz;
+    double estimated_cadence_spm;
+
+    /*
+     * Amount of new recording time represented
+     * by this FFT result.
+     */
+    double integration_duration_s;
+
+    /*
+     * Fractional number of steps contributed
+     * by this window.
+     */
+    double estimated_steps_added;
+
+    /*
+     * Fractional remainder currently stored by
+     * the accumulator.
+     */
+    double fractional_steps;
+
+    /*
+     * Whole estimated steps accumulated so far.
+     */
+    uint32_t estimated_step_count;
+
+} frequency_cadence_result_t;
 
 
 void frequency_detector_default_config(
@@ -176,6 +231,19 @@ int frequency_detector_evaluate_quality(
     const frequency_detector_t *detector,
     const frequency_dominant_result_t *dominant,
     frequency_quality_result_t *result);
+
+/*
+ * Stage 4:
+ *
+ * Convert a valid periodic-frequency result into
+ * cadence and accumulate estimated steps.
+ */
+int frequency_detector_update_cadence(
+    frequency_detector_t *detector,
+    const frequency_spectrum_output_t *spectrum,
+    const frequency_dominant_result_t *dominant,
+    const frequency_quality_result_t *quality,
+    frequency_cadence_result_t *result);
 
 
 #endif /* FREQUENCY_DETECTOR_H */

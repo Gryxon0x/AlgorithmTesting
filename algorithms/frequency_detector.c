@@ -299,8 +299,9 @@ void frequency_detector_default_config(
     config->quality_neighbor_bins = 1U;
 
     config->min_spectral_quality = 0.55;
-
     config->min_band_power = 0.000001;
+
+    config->step_frequency_multiplier = 1.0;
 }
 
 
@@ -350,6 +351,11 @@ int frequency_detector_init(
     }
 
     if (config->min_band_power < 0.0)
+    {
+        return -1;
+    }
+
+    if (!(config->step_frequency_multiplier > 0.0))
     {
         return -1;
     }
@@ -685,6 +691,121 @@ int frequency_detector_evaluate_quality(
             result->spectral_quality >=
             detector->config.min_spectral_quality
         );
+
+    return 0;
+}
+
+int frequency_detector_update_cadence(
+    frequency_detector_t *detector,
+    const frequency_spectrum_output_t *spectrum,
+    const frequency_dominant_result_t *dominant,
+    const frequency_quality_result_t *quality,
+    frequency_cadence_result_t *result)
+{
+    double integration_duration_s;
+    double step_frequency_hz;
+    double cadence_spm;
+
+    double steps_added = 0.0;
+
+    if ((detector == NULL) ||
+        (spectrum == NULL) ||
+        (dominant == NULL) ||
+        (quality == NULL) ||
+        (result == NULL))
+    {
+        return -1;
+    }
+
+    /*
+     * Determine how much NEW time this FFT
+     * result represents.
+     *
+     * The first FFT covers the complete initial
+     * 128-sample window.
+     *
+     * Later FFTs overlap previous windows, so
+     * only the time since the previous FFT result
+     * may be integrated.
+     */
+    if (!detector->integration_initialized)
+    {
+        integration_duration_s =
+            (double)FREQUENCY_FFT_SIZE /
+            detector->config.sample_rate_hz;
+
+        detector->integration_initialized = true;
+    }
+    else
+    {
+        const uint32_t elapsed_ms =
+            spectrum->window_end_ms -
+            detector->previous_window_end_ms;
+
+        integration_duration_s =
+            (double)elapsed_ms /
+            1000.0;
+    }
+
+    detector->previous_window_end_ms =
+        spectrum->window_end_ms;
+
+    /*
+     * Convert dominant spectral frequency into
+     * estimated step frequency.
+     */
+    step_frequency_hz =
+        dominant->dominant_frequency_hz *
+        detector->config.step_frequency_multiplier;
+
+    cadence_spm =
+        step_frequency_hz * 60.0;
+
+    /*
+     * Only periodic windows contribute steps.
+     */
+    if (quality->periodic_activity_detected)
+    {
+        steps_added =
+            step_frequency_hz *
+            integration_duration_s;
+
+        detector->fractional_steps +=
+            steps_added;
+
+        /*
+         * Convert accumulated fractional steps
+         * into whole events while preserving the
+         * remainder.
+         */
+        while (detector->fractional_steps >= 1.0)
+        {
+            detector->estimated_step_count++;
+
+            detector->fractional_steps -= 1.0;
+        }
+    }
+
+    result->cadence_valid =
+        quality->periodic_activity_detected;
+
+    result->estimated_step_frequency_hz =
+        step_frequency_hz;
+
+    result->estimated_cadence_spm =
+        cadence_spm;
+
+    result->integration_duration_s =
+        integration_duration_s;
+
+    result->estimated_steps_added =
+        steps_added;
+
+    result->fractional_steps =
+        detector->fractional_steps;
+
+    result->estimated_step_count =
+        detector->estimated_step_count;
 
     return 0;
 }
