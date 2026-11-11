@@ -167,6 +167,28 @@ typedef struct
 
 } frequency_cadence_result_t;
 
+typedef struct
+{
+    /*
+     * Offset relative to the dominant FFT bin.
+     * Normally between -0.5 and +0.5.
+     */
+    double bin_offset;
+
+    /*
+     * Frequency after parabolic interpolation.
+     */
+    double interpolated_frequency_hz;
+
+    /*
+     * False if interpolation could not safely
+     * be performed and the raw bin frequency
+     * was used instead.
+     */
+    bool interpolation_applied;
+
+} frequency_interpolation_result_t;
+
 
 void frequency_detector_default_config(
     frequency_detector_config_t *config);
@@ -244,6 +266,11 @@ int frequency_detector_update_cadence(
     const frequency_dominant_result_t *dominant,
     const frequency_quality_result_t *quality,
     frequency_cadence_result_t *result);
+
+int frequency_detector_interpolate_dominant(
+    const frequency_detector_t *detector,
+    const frequency_dominant_result_t *dominant,
+    frequency_interpolation_result_t *result);
 
 
 #endif /* FREQUENCY_DETECTOR_H */
