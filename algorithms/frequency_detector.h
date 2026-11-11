@@ -66,6 +66,18 @@ typedef struct
     */
     double step_frequency_multiplier;
 
+    /*
+    * Number of consecutive periodic windows
+    * required to enter the stabilized state.
+    */
+    uint32_t periodic_enter_windows;
+
+    /*
+    * Number of consecutive non-periodic windows
+    * required to leave the stabilized state.
+    */
+    uint32_t periodic_exit_windows;
+
 } frequency_detector_config_t;
 
 
@@ -104,6 +116,15 @@ typedef struct
     double power_spectrum[FREQUENCY_SPECTRUM_BINS];
 
     uint32_t window_count;
+
+    /*
+    * Stage 3b:
+    * stabilized periodic-activity state.
+    */
+    bool periodic_state;
+
+    uint32_t consecutive_periodic_windows;
+    uint32_t consecutive_nonperiodic_windows;
 
     /*
     * Stage 4 integration state.
@@ -189,6 +210,25 @@ typedef struct
 
 } frequency_interpolation_result_t;
 
+typedef struct
+{
+    /*
+     * Stabilized state after processing
+     * the current FFT window.
+     */
+    bool periodic_state;
+
+    /*
+     * True only when this window caused
+     * the stabilized state to change.
+     */
+    bool state_changed;
+
+    uint32_t consecutive_periodic_windows;
+    uint32_t consecutive_nonperiodic_windows;
+
+} frequency_periodic_state_result_t;
+
 
 void frequency_detector_default_config(
     frequency_detector_config_t *config);
@@ -263,14 +303,19 @@ int frequency_detector_evaluate_quality(
 int frequency_detector_update_cadence(
     frequency_detector_t *detector,
     const frequency_spectrum_output_t *spectrum,
-    const frequency_dominant_result_t *dominant,
-    const frequency_quality_result_t *quality,
+    const frequency_interpolation_result_t *frequency,
+    const frequency_periodic_state_result_t *periodic,
     frequency_cadence_result_t *result);
 
 int frequency_detector_interpolate_dominant(
     const frequency_detector_t *detector,
     const frequency_dominant_result_t *dominant,
     frequency_interpolation_result_t *result);
+
+int frequency_detector_update_periodic_state(
+    frequency_detector_t *detector,
+    const frequency_quality_result_t *quality,
+    frequency_periodic_state_result_t *result);
 
 
 #endif /* FREQUENCY_DETECTOR_H */

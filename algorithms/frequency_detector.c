@@ -302,6 +302,9 @@ void frequency_detector_default_config(
     config->min_band_power = 0.000001;
 
     config->step_frequency_multiplier = 1.0;
+
+    config->periodic_enter_windows = 2U;
+    config->periodic_exit_windows = 2U;
 }
 
 
@@ -356,6 +359,12 @@ int frequency_detector_init(
     }
 
     if (!(config->step_frequency_multiplier > 0.0))
+    {
+        return -1;
+    }
+
+    if ((config->periodic_enter_windows == 0U) ||
+        (config->periodic_exit_windows == 0U))
     {
         return -1;
     }
@@ -698,8 +707,8 @@ int frequency_detector_evaluate_quality(
 int frequency_detector_update_cadence(
     frequency_detector_t *detector,
     const frequency_spectrum_output_t *spectrum,
-    const frequency_dominant_result_t *dominant,
-    const frequency_quality_result_t *quality,
+    const frequency_dominant_result_t *frequency,
+    const frequency_quality_result_t *periodic,
     frequency_cadence_result_t *result)
 {
     double integration_duration_s;
@@ -710,8 +719,8 @@ int frequency_detector_update_cadence(
 
     if ((detector == NULL) ||
         (spectrum == NULL) ||
-        (dominant == NULL) ||
-        (quality == NULL) ||
+        (frequency == NULL) ||
+        (periodic == NULL) ||
         (result == NULL))
     {
         return -1;
@@ -755,7 +764,7 @@ int frequency_detector_update_cadence(
      * estimated step frequency.
      */
     step_frequency_hz =
-        dominant->dominant_frequency_hz *
+        frequency->dominant_frequency_hz *
         detector->config.step_frequency_multiplier;
 
     cadence_spm =
@@ -764,7 +773,7 @@ int frequency_detector_update_cadence(
     /*
      * Only periodic windows contribute steps.
      */
-    if (quality->periodic_activity_detected)
+    if (periodic->periodic_activity_detected)
     {
         steps_added =
             step_frequency_hz *
@@ -787,7 +796,7 @@ int frequency_detector_update_cadence(
     }
 
     result->cadence_valid =
-        quality->periodic_activity_detected;
+        periodic->periodic_activity_detected;
 
     result->estimated_step_frequency_hz =
         step_frequency_hz;
@@ -945,6 +954,86 @@ int frequency_detector_interpolate_dominant(
 
     result->interpolation_applied =
         true;
+
+    return 0;
+}
+
+int frequency_detector_update_periodic_state(
+    frequency_detector_t *detector,
+    const frequency_quality_result_t *quality,
+    frequency_periodic_state_result_t *result)
+{
+    bool state_changed = false;
+
+    if ((detector == NULL) ||
+        (quality == NULL) ||
+        (result == NULL))
+    {
+        return -1;
+    }
+
+    if (quality->periodic_activity_detected)
+    {
+        /*
+         * Current window looks periodic.
+         */
+        detector->consecutive_nonperiodic_windows = 0U;
+
+        if (detector->consecutive_periodic_windows <
+            detector->config.periodic_enter_windows)
+        {
+            detector->consecutive_periodic_windows++;
+        }
+
+        /*
+         * Enter the stabilized periodic state only
+         * after enough consecutive good windows.
+         */
+        if ((!detector->periodic_state) &&
+            (detector->consecutive_periodic_windows >=
+             detector->config.periodic_enter_windows))
+        {
+            detector->periodic_state = true;
+            state_changed = true;
+        }
+    }
+    else
+    {
+        /*
+         * Current window does not look periodic.
+         */
+        detector->consecutive_periodic_windows = 0U;
+
+        if (detector->consecutive_nonperiodic_windows <
+            detector->config.periodic_exit_windows)
+        {
+            detector->consecutive_nonperiodic_windows++;
+        }
+
+        /*
+         * Leave the periodic state only after
+         * enough consecutive bad windows.
+         */
+        if (detector->periodic_state &&
+            (detector->consecutive_nonperiodic_windows >=
+             detector->config.periodic_exit_windows))
+        {
+            detector->periodic_state = false;
+            state_changed = true;
+        }
+    }
+
+    result->periodic_state =
+        detector->periodic_state;
+
+    result->state_changed =
+        state_changed;
+
+    result->consecutive_periodic_windows =
+        detector->consecutive_periodic_windows;
+
+    result->consecutive_nonperiodic_windows =
+        detector->consecutive_nonperiodic_windows;
 
     return 0;
 }

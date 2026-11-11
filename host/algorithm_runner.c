@@ -533,7 +533,9 @@ static int run_frequency_analysis(
                 &spectrum_output))
         {
             frequency_dominant_result_t dominant;
+            frequency_interpolation_result_t interpolated;
             frequency_quality_result_t quality;
+            frequency_periodic_state_result_t periodic;
             frequency_cadence_result_t cadence;
 
             /*
@@ -548,6 +550,25 @@ static int run_frequency_analysis(
                 fprintf(
                     stderr,
                     "Dominant-frequency analysis failed "
+                    "for window %u.\n",
+                    spectrum_output.window_number);
+
+                return -1;
+            }
+
+            /*
+            * Stage 2b:
+            * Refine the dominant frequency between
+            * FFT-bin centers.
+            */
+            if (frequency_detector_interpolate_dominant(
+                    &detector,
+                    &dominant,
+                    &interpolated) != 0)
+            {
+                fprintf(
+                    stderr,
+                    "Frequency interpolation failed "
                     "for window %u.\n",
                     spectrum_output.window_number);
 
@@ -574,14 +595,32 @@ static int run_frequency_analysis(
             }
 
             /*
+            * Stage 3b:
+            * Stabilize the periodic-activity state.
+            */
+            if (frequency_detector_update_periodic_state(
+                    &detector,
+                    &quality,
+                    &periodic) != 0)
+            {
+                fprintf(
+                    stderr,
+                    "Periodic-state update failed "
+                    "for window %u.\n",
+                    spectrum_output.window_number);
+
+                return -1;
+            }
+
+            /*
             * Stage 4:
             * Estimate cadence and accumulate steps.
             */
             if (frequency_detector_update_cadence(
                     &detector,
                     &spectrum_output,
-                    &dominant,
-                    &quality,
+                    &interpolated,
+                    &periodic,
                     &cadence) != 0)
             {
                 fprintf(
@@ -595,22 +634,26 @@ static int run_frequency_analysis(
 
             printf(
                 "%u\t%u\t%u\t"
+                "%zu\t"
+                "%.6f\t"
+                "%.3f\t"
                 "%.6f\t"
                 "%.3f\t"
                 "%s\t"
-                "%.6f\t"
+                "%s\t"
+                "%s\t"
                 "%.2f\t"
-                "%.3f\t"
-                "%.3f\t"
-                "%u\t"
-                "%.3f\n",
+                "%u\n",
 
                 spectrum_output.window_number,
-
                 spectrum_output.window_start_ms,
                 spectrum_output.window_end_ms,
 
+                dominant.dominant_bin,
                 dominant.dominant_frequency_hz,
+
+                interpolated.bin_offset,
+                interpolated.interpolated_frequency_hz,
 
                 quality.spectral_quality,
 
@@ -618,14 +661,16 @@ static int run_frequency_analysis(
                     ? "YES"
                     : "NO",
 
-                cadence.estimated_step_frequency_hz,
+                periodic.periodic_state
+                    ? "YES"
+                    : "NO",
+
+                periodic.state_changed
+                    ? "YES"
+                    : "NO",
+
                 cadence.estimated_cadence_spm,
-
-                cadence.integration_duration_s,
-                cadence.estimated_steps_added,
-
-                cadence.estimated_step_count,
-                cadence.fractional_steps);
+                cadence.estimated_step_count);
         }
     }
 
