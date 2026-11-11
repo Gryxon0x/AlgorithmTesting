@@ -809,3 +809,142 @@ int frequency_detector_update_cadence(
 
     return 0;
 }
+
+int frequency_detector_interpolate_dominant(
+    const frequency_detector_t *detector,
+    const frequency_dominant_result_t *dominant,
+    frequency_interpolation_result_t *result)
+{
+    size_t bin;
+
+    double left_power;
+    double center_power;
+    double right_power;
+
+    double denominator;
+    double offset;
+
+    double frequency_hz;
+
+    if ((detector == NULL) ||
+        (dominant == NULL) ||
+        (result == NULL))
+    {
+        return -1;
+    }
+
+    bin = dominant->dominant_bin;
+
+    if (bin >= FREQUENCY_SPECTRUM_BINS)
+    {
+        return -1;
+    }
+
+    /*
+     * Default/fallback result:
+     * use the center frequency of the FFT bin.
+     */
+    result->bin_offset = 0.0;
+
+    result->interpolated_frequency_hz =
+        dominant->dominant_frequency_hz;
+
+    result->interpolation_applied = false;
+
+    /*
+     * Parabolic interpolation requires one bin
+     * on both sides of the dominant bin.
+     */
+    if ((bin == 0U) ||
+        (bin >= FREQUENCY_SPECTRUM_BINS - 1U))
+    {
+        return 0;
+    }
+
+    left_power =
+        detector->power_spectrum[bin - 1U];
+
+    center_power =
+        detector->power_spectrum[bin];
+
+    right_power =
+        detector->power_spectrum[bin + 1U];
+
+    /*
+     * Parabolic peak interpolation:
+     *
+     *        1     P[k-1] - P[k+1]
+     * d =   --- * -----------------
+     *        2     P[k-1] - 2P[k] + P[k+1]
+     */
+    denominator =
+        left_power -
+        2.0 * center_power +
+        right_power;
+
+    /*
+     * Avoid division by a value extremely
+     * close to zero.
+     */
+    if (fabs(denominator) < 1.0e-18)
+    {
+        return 0;
+    }
+
+    offset =
+        0.5 *
+        (left_power - right_power) /
+        denominator;
+
+    /*
+     * A valid local parabolic correction should
+     * stay reasonably close to the center bin.
+     *
+     * Clamp it to half a bin for robustness.
+     */
+    if (offset < -0.5)
+    {
+        offset = -0.5;
+    }
+    else if (offset > 0.5)
+    {
+        offset = 0.5;
+    }
+
+    frequency_hz =
+        (
+            (double)bin +
+            offset
+        ) *
+        detector->config.sample_rate_hz /
+        (double)FREQUENCY_FFT_SIZE;
+
+    /*
+     * Keep the refined result inside the
+     * configured search range.
+     */
+    if (frequency_hz <
+        detector->config.search_low_hz)
+    {
+        frequency_hz =
+            detector->config.search_low_hz;
+    }
+
+    if (frequency_hz >
+        detector->config.search_high_hz)
+    {
+        frequency_hz =
+            detector->config.search_high_hz;
+    }
+
+    result->bin_offset =
+        offset;
+
+    result->interpolated_frequency_hz =
+        frequency_hz;
+
+    result->interpolation_applied =
+        true;
+
+    return 0;
+}
